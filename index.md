@@ -21,25 +21,49 @@
 
 
 
+<!-- Gitalk 评论 start  -->
 {% if site.gitalk.enable %}
-<!-- Link Gitalk 的支持文件  -->
+<!-- Gitalk link  -->
 <link rel="stylesheet" href="https://unpkg.com/gitalk/dist/gitalk.css">
 <script src="https://unpkg.com/gitalk@latest/dist/gitalk.min.js"></script>
 
 <div id="gitalk-container"></div>
     <script type="text/javascript">
     var gitalk = new Gitalk({
-
-    // gitalk的主要参数
-        clientID: `09065629f43c46c75b5a`,
-        clientSecret: `91bdc8f3039435ac0d672a4369135008500e54e5`,
-        repo: `https://github.com/JiangAndy/JiangAndy.github.io`,
-        owner: 'JiangAndy',
-        admin: ['JiangAndy'],
-        id: '页面的唯一标识，gitalk会根据这个标识自动创建的issue的标签',
-    
+    clientID: '{{site.gitalk.clientID}}',
+    clientSecret: '{{site.gitalk.clientSecret}}',
+    repo: '{{site.gitalk.repo}}',
+    owner: '{{site.gitalk.owner}}',
+    admin: ['{{site.gitalk.admin}}'],
+    distractionFreeMode: {{site.gitalk.distractionFreeMode}},
+    id: 'resources',
     });
     gitalk.render('gitalk-container');
 </script>
 {% endif %}
+<!-- Gitalk end -->
 
+ <!-- disqus 评论框 start  -->
+{% if site.disqus.enable %}
+
+<div class="comment">
+    <div id="disqus_thread" class="disqus-thread">
+    </div>
+</div>
+<!-- disqus 评论框 end -->
+
+<!-- disqus 公共JS代码 start (一个网页只需插入一次) -->
+<script type="text/javascript">
+    /* * * CONFIGURATION VARIABLES * * */
+    var disqus_shortname = "{{site.disqus.username}}";
+    var disqus_identifier = "{{site.disqus.username}}/{{page.url}}";
+    var disqus_url = "{{site.url}}{{page.url}}";
+
+    (function() {
+        var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+        dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+        (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    })();
+</script>
+<!-- disqus 公共JS代码 end -->
+{% endif %}
