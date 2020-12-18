@@ -7,10 +7,11 @@
       <p><b>邮箱：1143958845@qq.com</b></p>
     </td>
     <td width="25%">
-      <img src="/github2.jpg" width="100%">      % 插入证件照代码
+      <img src="/github2.jpg" width="100%">
     </td>
   </tr>
 </table>
+
 ## 研究方向 计算机视觉 深度学习
 
 ## 最新文章
