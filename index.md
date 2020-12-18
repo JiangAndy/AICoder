@@ -20,7 +20,7 @@
 #### [computer vision](blogs/cv/test.md)
 
 
-<!-- Gitalk 评论 start  -->
+
 {% if site.gitalk.enable %}
 <!-- Link Gitalk 的支持文件  -->
 <link rel="stylesheet" href="https://unpkg.com/gitalk/dist/gitalk.css">
@@ -42,4 +42,4 @@
     gitalk.render('gitalk-container');
 </script>
 {% endif %}
-<!-- Gitalk end -->
+
