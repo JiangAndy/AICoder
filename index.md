@@ -7,7 +7,7 @@
       <p><b>邮箱：1143958845@qq.com</b></p>
     </td>
     <td width="25%">
-      <img src="/github2.jpg" width="100%">
+      <img src="imgs/github2.jpg" width="100%">
     </td>
   </tr>
 </table>
