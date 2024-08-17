@@ -21,11 +21,8 @@ $$\boldsymbol{y}_t = f(\boldsymbol{x}_t,\boldsymbol{A},\boldsymbol{B})$$
 
 ### Scaled Dot-product Attention
 Attention 有许多种实现方式，但是最常见的还是 Scaled Dot-product Attention。
-<center>
 
 ![](https://transformers.run/assets/img/attention/attention.png)
-
-</center>
 
 Scaled Dot-product Attention 共包含 2 个主要步骤：
 
@@ -35,7 +32,7 @@ Scaled Dot-product Attention 共包含 2 个主要步骤：
 
     由于点积可以产生任意大的数字，这会破坏训练过程的稳定性。因此注意力分数还需要乘以一个缩放因子来标准化它们的方差，然后用一个 softmax 标准化。这样就得到了最终的注意力权重 $w_{ij}$，表示第 $i$ 个 query 向量与第 $j$ 个 key 向量之间的关联程度。
 
-- **更新 token embeddings**：将权重 $w_{ij}$ 与对应的 value 向量 $\boldsymbol{v}_1,\dots,\boldsymbol{v}_n$ 相乘以获得第 $i$ 个 query 向量更新后的语义表示 $\boldsymbol{x}_i' = \sum_{j} w_{ij}\boldsymbol{v}_j $。 
+- **更新 token embeddings**：将权重 $w_{ij}$ 与对应的 value 向量 $v_1,\dots,v_n$ 相乘以获得第 $i$ 个 query 向量更新后的语义表示 $x_i' = \sum_{j} w_{ij}v_j $。 
 
 形式化表示为：
 
@@ -46,9 +43,10 @@ $$\text{Attention}(\boldsymbol{Q},\boldsymbol{K},\boldsymbol{V}) = \text{softmax
  编码成了一个新的 $m\times d_v$ 的序列。
 
 将上面的公式拆开来看更加清楚：
-$$\text{Attention}(\boldsymbol{q}_t,\boldsymbol{K},\boldsymbol{V}) = \sum_{s=1}^n \frac{1}{Z}\exp\left(\frac{\langle\boldsymbol{q}_t, \boldsymbol{k}_s\rangle}{\sqrt{d_k}}\right)\boldsymbol{v}_s \tag{5}$$
 
-其中 $Z$ 是归一化因子，$\boldsymbol{K},\boldsymbol{V}$ 是一一对应的 key 和 value 向量序列，Scaled Dot-product Attention 就是通过 $\boldsymbol{q}_t$ 这个 query 与各个 $\boldsymbol{k}_s$ 内积并 softmax 的方式来得到 $\boldsymbol{q}_t$ 与各个 $\boldsymbol{v}_s$ 的相似度，然后加权求和，得到一个 $d_v$ 维的向量。其中因子 $\sqrt{d_k}$ 起到调节作用，使得内积不至于太大。
+$$\text{Attention}(q_t,\boldsymbol{K},\boldsymbol{V}) = \sum_{s=1}^n \frac{1}{Z}\exp\left(\frac{\langle q_t, k_s\rangle}{\sqrt{d_k}}\right)v_s$$
+
+其中 $Z$ 是归一化因子，K,V是一一对应的 key 和 value 向量序列，Scaled Dot-product Attention 就是通过 $q_t$ 这个 query 与各个 $k_s$ 内积并 softmax 的方式来得到 $q_t$ 与各个 $v_s$ 的相似度，然后加权求和，得到一个 $d_v$ 维的向量。其中因子 $\sqrt{d_k}$ 起到调节作用，使得内积不至于太大。
 
 下面我们通过 Pytorch 来手工实现 Scaled Dot-product Attention：
 
@@ -150,7 +148,8 @@ Multi-head Attention 首先通过线性映射将 $\boldsymbol{Q},\boldsymbol{K},
 
 形式化表示为：
 
-$$\begin{gather}head_i = \text{Attention}(\boldsymbol{Q}\boldsymbol{W}_i^Q,\boldsymbol{K}\boldsymbol{W}_i^K,\boldsymbol{V}\boldsymbol{W}_i^V)\\\text{MultiHead}(\boldsymbol{Q},\boldsymbol{K},\boldsymbol{V}) = \text{Concat}(head_1,...,head_h)\end{gather} \tag{6}$$
+$$\begin{gather}head_i = Attention(\boldsymbol{Q}\boldsymbol{W}_i^Q,\boldsymbol{K}\boldsymbol{W}_i^K,\boldsymbol{V}\boldsymbol{W}_i^V)\\
+MultiHead(\boldsymbol{Q},\boldsymbol{K},\boldsymbol{V}) = \text{Concat}(head_1,...,head_h)\end{gather} $$
 
 其中 $\boldsymbol{W}_i^Q\in\mathbb{R}^{d_k\times \tilde{d}_k}, \boldsymbol{W}_i^K\in\mathbb{R}^{d_k\times \tilde{d}_k}, \boldsymbol{W}_i^V\in\mathbb{R}^{d_v\times \tilde{d}_v}$ 是映射矩阵，$h$ 是注意力头的数量。最后，将多头的结果拼接起来就得到最终 $m\times h\tilde{d}_v$ 的结果序列。所谓的“多头” (Multi-head)，其实就是多做几次 Scaled Dot-product Attention，然后把结果拼接。
 
