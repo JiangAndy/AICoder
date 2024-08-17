@@ -1,1 +1,5 @@
 theme: jekyll-theme-hacker
+math:
+  enable: true
+  per_page: true
+  engine: mathjax
