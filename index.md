@@ -2,6 +2,7 @@
 layout: default
 ---
 
+# AICoder
 <table border="0">
   <tr>
     <td width="75%">
@@ -15,7 +16,10 @@ layout: default
       <img src="imgs/微信图片_20240817204501.jpg" width="100%">
     </td>
   </tr>
-  <tr>
+</table>
+
+<table border="1">
+<tr>
     <td width="75%">
       <h1>最新文章</h1>
       <p><b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b></p>
