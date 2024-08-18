@@ -1,6 +1,3 @@
----
-layout: default
----
 
 # AICoder
 <table border="0">
@@ -22,13 +19,13 @@ layout: default
 <tr>
     <td width="75%">
       <h1>最新文章</h1>
-      <p><b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b></p>
-      <p><b><a href="blogs/llm/transformers/transformer.md">初识Transformer</b></p>
-      <p><b><a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT</b></p>
-      <p><b><a href="blogs/llm/StableDiffusion/stable_diffusion.md">浅谈StableDiffusion</b></p>
-      <p><b><a href="blogs/llm/accelerate/accelerate.md">大模型训练工具之Accelerate</b></p>
-      <p><b><a href="blogs/llm/deepspeed/deepspeed.md">大模型训练工具之Deepspeed</b></p>
-      <p><b><a href="https://mp.csdn.net/console/column/allColumnList">CSDN</b></p>
+      <b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b><br>
+      <b><a href="blogs/llm/transformers/transformer.md">初识Transformer</b><br>
+      <b><a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT</b><br>
+      <b><a href="blogs/llm/StableDiffusion/stable_diffusion.md">浅谈StableDiffusion</b><br>
+      <b><a href="blogs/llm/accelerate/accelerate.md">大模型训练工具之Accelerate</b><br>
+      <b><a href="blogs/llm/deepspeed/deepspeed.md">大模型训练工具之Deepspeed</b><br>
+      <b><a href="https://mp.csdn.net/console/column/allColumnList">CSDN</b><br>
     </td>
     <td width="25%">
       <img src="https://i0.hdslb.com/bfs/article/37e8f0409b250df08f710ab3368b1c8f6adb828f.gif@!web-article-pic.webp?" width="100%">
