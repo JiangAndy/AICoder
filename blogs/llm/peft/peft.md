@@ -14,8 +14,11 @@ PEFT 方法还有助于提高轻便性，其中用户可以使用 PEFT 方法调
 🤗 PEFT 库提供了最新的参数高效微调技术，与 🤗 Transformers 和 🤗 Accelerate 无缝集成。这使得能够使用来自 Transformers 的最流行和高性能的模型，以及 Accelerate 的简单性和可扩展性。以下是目前支持的 PEFT 方法:
 
 LoRA: [LORA: LOW-RANK ADAPTATION OF LARGE LANGUAGE MODELS](https://arxiv.org/pdf/2106.09685.pdf)
+
 Prefix Tuning: [P-Tuning v2: Prompt Tuning Can Be Comparable to Fine-tuning Universally Across Scales and Tasks](https://arxiv.org/pdf/2110.07602.pdf)
+
 Prompt Tuning: [The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/pdf/2104.08691.pdf)
+
 P-Tuning: [GPT Understands](https://arxiv.org/pdf/2103.10385.pdf), [Too](https://arxiv.org/pdf/2103.10385.pdf)
 
 ## 环境准备
