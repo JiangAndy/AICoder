@@ -3,7 +3,7 @@
 <table border="0">
   <tr>
     <td width="75%">
-      <h1>蒋凯涛</h1>
+      <p><b>蒋凯涛</b></p>
       <p><b>2021-2023就职于百度</b></p>
       <p><b>2021年硕士毕业于西安交通大学人工智能学院</b></p>
       <p><b>邮箱：1143958845@qq.com</b></p>
@@ -15,7 +15,7 @@
   </tr>
   <tr>
     <td width="75%">
-      <h1>最新文章</h1>
+      <p><b>最新文章</b></p>
       <b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b><br>
       <b><a href="blogs/llm/transformers/transformer.md">初识Transformer</b><br>
       <b><a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT</b><br>
