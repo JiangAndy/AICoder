@@ -13,10 +13,7 @@
       <img src="imgs/微信图片_20240817204501.jpg" width="100%">
     </td>
   </tr>
-</table>
-
-<table border="1">
-<tr>
+  <tr>
     <td width="75%">
       <h1>最新文章</h1>
       <b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b><br>
