@@ -18,25 +18,11 @@
 ## 最新文章
 <p>    
 <img  src="imgs/aggr2-avbdn.gif"  width="200"  align="right"  />
-<b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b><br>
-<b><a href="blogs/llm/transformers/transformer.md">初识Transformer</b><br>
-<b><a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT</b><br>
-<b><a href="blogs/llm/StableDiffusion/stable_diffusion.md">浅谈StableDiffusion</b><br>
-<b><a href="blogs/llm/accelerate/accelerate.md">大模型训练工具之Accelerate</b><br>
-<b><a href="blogs/llm/deepspeed/deepspeed.md">大模型训练工具之Deepspeed</b><br>
+<a href="blogs/llm/transformers/attention.md">一文看懂Attention机制<br>
+<a href="blogs/llm/transformers/transformer.md">初识Transformer<br>
+<a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT<br>
+<a href="blogs/llm/StableDiffusion/stable_diffusion.md">浅谈StableDiffusion<br>
+<a href="blogs/llm/accelerate/accelerate.md">大模型训练工具之Accelerate<br>
+<a href="blogs/llm/deepspeed/deepspeed.md">大模型训练工具之Deepspeed<br>
+<a href="https://mp.csdn.net/console/column/allColumnList">CSDN<br>
 </p>
-
-   
-[一文看懂Attention机制](blogs/llm/transformers/attention.md)
-
-[初识Transformer](blogs/llm/transformers/transformer.md)
-
-[参数高效微调技术PEFT](blogs/llm/peft/peft.md)
-
-[浅谈StableDiffusion](blogs/llm/StableDiffusion/stable_diffusion.md)
-
-[大模型训练工具之Accelerate](blogs/llm/accelerate/accelerate.md)
-
-[大模型训练工具之Deepspeed](blogs/llm/deepspeed/deepspeed.md)
-
-[CSDN](https://mp.csdn.net/console/column/allColumnList)
