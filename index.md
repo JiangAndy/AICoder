@@ -1,5 +1,4 @@
 
-# AICoder
 <table border="0">
   <tr>
     <td width="75%">
@@ -19,7 +18,15 @@
 ## 最新文章
 <p>    
 <img  src="imgs/aggr2-avbdn.gif"  width="200"  align="right"  />
+<b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b><br>
+<b><a href="blogs/llm/transformers/transformer.md">初识Transformer</b><br>
+<b><a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT</b><br>
+<b><a href="blogs/llm/StableDiffusion/stable_diffusion.md">浅谈StableDiffusion</b><br>
+<b><a href="blogs/llm/accelerate/accelerate.md">大模型训练工具之Accelerate</b><br>
+<b><a href="blogs/llm/deepspeed/deepspeed.md">大模型训练工具之Deepspeed</b><br>
+</p>
 
+   
 [一文看懂Attention机制](blogs/llm/transformers/attention.md)
 
 [初识Transformer](blogs/llm/transformers/transformer.md)
@@ -33,6 +40,3 @@
 [大模型训练工具之Deepspeed](blogs/llm/deepspeed/deepspeed.md)
 
 [CSDN](https://mp.csdn.net/console/column/allColumnList)
-</p>
-
-   
