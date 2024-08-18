@@ -1,4 +1,11 @@
 # 一文看懂Attention
+
+![](imgs/a6cpx-eg3u0.gif)
+
+<p>
+<img src="imgs/a6cpx-eg3u0.gif" width="200" align="right" />
+</p>
+
 # 注意力机制
 Transformer 模型之所以如此强大，是因为它抛弃了之前广泛采用的循环网络和卷积网络，而采用了一种特殊的结构——注意力机制 (Attention) 来建模文本。
 
