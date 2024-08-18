@@ -1,4 +1,5 @@
 # 参数高效微调（PEFT）方法
+
 ## 动机
 基于 Transformers 架构的大型语言模型 (LLM)，如 GPT、T5 和 BERT，已经在各种自然语言处理 (NLP) 任务中取得了最先进的结果。此外，还开始涉足其他领域，例如计算机视觉 (CV) (VIT、Stable Diffusion、LayoutLM) 和音频 (Whisper、XLS-R)。传统的范式是对通用网络规模数据进行大规模预训练，然后对下游任务进行微调。与使用开箱即用的预训练 LLM (例如，零样本推理) 相比，在下游数据集上微调这些预训练 LLM 会带来巨大的性能提升。
 
@@ -17,5 +18,67 @@ Prefix Tuning: [P-Tuning v2: Prompt Tuning Can Be Comparable to Fine-tuning Univ
 Prompt Tuning: [The Power of Scale for Parameter-Efficient Prompt Tuning](https://arxiv.org/pdf/2104.08691.pdf)
 P-Tuning: [GPT Understands](https://arxiv.org/pdf/2103.10385.pdf), [Too](https://arxiv.org/pdf/2103.10385.pdf)
 
+## 环境准备
+首先安装 🤗 PEFT：
+```shell
+pip install peft
+```
+
+如果你想尝试全新的特性，你可能会有兴趣从源代码安装这个库：
+
+```shell
+pip install git+https://github.com/huggingface/peft.git
+```
+
 ## 使用 🤗 PEFT 训练您的模型
 ### 引进必要的库
+```python
+  from transformers import AutoModelForSeq2SeqLM
++ from peft import get_peft_model, LoraConfig, TaskType
+  model_name_or_path = "bigscience/mt0-large"
+  tokenizer_name_or_path = "bigscience/mt0-large"
+```
+
+### 创建 PEFT 方法对应的配置
+```python
+peft_config = LoraConfig(
+    task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1
+)
+```
+
+### 通过调用 get_peft_model 包装基础 🤗 Transformer 模型
+```python
+  model = AutoModelForSeq2SeqLM.from_pretrained(model_name_or_path)
++ model = get_peft_model(model, peft_config)
++ model.print_trainable_parameters()
+# output: trainable params: 2359296 || all params: 1231940608 || trainable%: 0.19151053100118282
+```
+训练循环的其余部分保持不变。
+
+### 当您准备好保存模型以供推理时，只需执行以下操作。
+```python
+model.save_pretrained("output_dir") 
+# model.push_to_hub("my_awesome_peft_model") also works
+```
+这只会保存经过训练的增量 PEFT 权重。
+
+### 要加载它进行推理，请遵循以下代码片段:
+```python
+  from transformers import AutoModelForSeq2SeqLM
++ from peft import PeftModel, PeftConfig
+
+  peft_model_id = "smangrul/twitter_complaints_bigscience_T0_3B_LORA_SEQ_2_SEQ_LM"
+  config = PeftConfig.from_pretrained(peft_model_id)
+  model = AutoModelForSeq2SeqLM.from_pretrained(config.base_model_name_or_path)
++ model = PeftModel.from_pretrained(model, peft_model_id)
+  tokenizer = AutoTokenizer.from_pretrained(config.base_model_name_or_path)
+
+  model = model.to(device)
+  model.eval()
+  inputs = tokenizer("Tweet text : @HondaCustSvc Your customer service has been horrible during the recall process. I will never purchase a Honda again. Label :", return_tensors="pt")
+
+  with torch.no_grad():
+      outputs = model.generate(input_ids=inputs["input_ids"].to("cuda"), max_new_tokens=10)
+      print(tokenizer.batch_decode(outputs.detach().cpu().numpy(), skip_special_tokens=True)[0])
+# 'complaint'
+```
