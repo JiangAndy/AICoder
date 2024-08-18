@@ -13,19 +13,17 @@
       <img src="imgs/微信图片_20240817204501.jpg" width="100%">
     </td>
   </tr>
-  <tr>
-    <td width="75%">
-      <p><b>最新文章</b></p>
-      <b><a href="blogs/llm/transformers/attention.md">一文看懂Attention机制</b><br>
-      <b><a href="blogs/llm/transformers/transformer.md">初识Transformer</b><br>
-      <b><a href="blogs/llm/peft/peft.md">参数高效微调技术PEFT</b><br>
-      <b><a href="blogs/llm/StableDiffusion/stable_diffusion.md">浅谈StableDiffusion</b><br>
-      <b><a href="blogs/llm/accelerate/accelerate.md">大模型训练工具之Accelerate</b><br>
-      <b><a href="blogs/llm/deepspeed/deepspeed.md">大模型训练工具之Deepspeed</b><br>
-      <b><a href="https://mp.csdn.net/console/column/allColumnList">CSDN</b><br>
-    </td>
-    <td width="25%">
-      <img src="https://i0.hdslb.com/bfs/article/37e8f0409b250df08f710ab3368b1c8f6adb828f.gif@!web-article-pic.webp?" width="100%">
-    </td>
-  </tr>
 </table>
+
+## 最新文章
+
+[一文看懂Attention机制](blogs/llm/transformers/attention.md)
+[初识Transformer](blogs/llm/transformers/transformer.md)
+[参数高效微调技术PEFT](blogs/llm/peft/peft.md)
+[浅谈StableDiffusion](blogs/llm/StableDiffusion/stable_diffusion.md)
+[大模型训练工具之Accelerate](blogs/llm/accelerate/accelerate.md)
+[大模型训练工具之Deepspeed](blogs/llm/deepspeed/deepspeed.md)
+[CSDN](https://mp.csdn.net/console/column/allColumnList)
+
+<img src="https://i0.hdslb.com/bfs/article/37e8f0409b250df08f710ab3368b1c8f6adb828f.gif@!web-article-pic.webp?" width="100%">
+   
