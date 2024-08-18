@@ -27,7 +27,7 @@ layout: default
       <p><b><a href="https://mp.csdn.net/console/column/allColumnList">CSDN</b></p>
     </td>
     <td width="25%">
-      <img src="https://i0.hdslb.com/bfs/article/37e8f0409b250df08f710ab3368b1c8f6adb828f.gif@!web-article-pic.webp" width="100%">
+      <img src="https://i0.hdslb.com/bfs/article/37e8f0409b250df08f710ab3368b1c8f6adb828f.gif@!web-article-pic.webp?" width="100%">
     </td>
   </tr>
 </table>
