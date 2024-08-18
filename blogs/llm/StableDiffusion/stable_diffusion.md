@@ -1,4 +1,4 @@
-# StableDiffusion
+# 浅谈StableDiffusion
 
 ## 什么是Diffusion
 
