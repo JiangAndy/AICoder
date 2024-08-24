@@ -71,8 +71,11 @@
 基于上诉实际需求，DeepSpeed应运而生。DeepSpeed是由Microsoft提供的分布式训练工具，旨在支持更大规模的模型和提供更多的优化策略和工具。与其他框架相比，DeepSpeed支持更大规模的模型和提供更多的优化策略和工具。其中，主要优势在于支持更大规模的模型、提供了更多的优化策略和工具（例如 ZeRO 和 Offload 等）。
 
 ### zero简介
+
 ZeRO论文:[《ZeRO：Memory Optimizations Toward Training Trillion Parameter Models》](https://arxiv.org/pdf/1910.02054)
+
 ZeRO-Offload论文：[《ZeRO-Offload：Democratizing Billion-Scale Model Training.》](https://arxiv.org/abs/2101.06840)
+
 NVMe技术论文：[《 ZeRO-Infinity: Breaking the GPU Memory Wall for Extreme Scale Deep Learning》](https://arxiv.org/abs/2104.07857)
 
 `ZeRO`（Zero Redundancy Optimizer）是一种用于优化大规模深度学习模型训练的技术。它的主要目标是降低训练期间的内存占用、通信开销和计算负载，从而使用户能够训练更大的模型并更高效地利用硬件资源。
@@ -87,12 +90,12 @@ ZERO论文首先分析了模型训练中内存主要消耗在两个方面：
 
 `ZERO`分别使用`ZeRO-DP`和`ZeRO-R`来优化`model states`和`residual states`。如上图所示，`ZeRO-DP`包括三个阶段：
 
-**ZeRO 第 1 阶段**：优化器状态分割（$P_{os}$）：
+**ZeRO 第 1 阶段**：优化器状态分割 $P_{os}$：
 在每个gpu中保存全部的参数和梯度，但是只保存 $1/{N_d}$ 的优化器状态变量。通过将优化器状态进行分割，实现4倍的内存减少，同时保持与DP相同的通信量。
 
-**ZeRO 第 2 阶段**：梯度分割（$P_{os+g}$）：每个gpu中只保存 $1/{N_d}$ 的梯度，实现8倍的内存减少，并保持与DP相同的通信量。
+**ZeRO 第 2 阶段**：梯度分割 $P_{os+g}$：每个gpu中只保存 $1/{N_d}$ 的梯度，实现8倍的内存减少，并保持与DP相同的通信量。
 
-**ZeRO 第 3 阶段**：参数分割（$P_{os+g+p}$）：
+**ZeRO 第 3 阶段**：参数分割 $P_{os+g+p}$：
 每个gpu中只保存 $1/{N_d}$ 的参数 ，实现64倍的内存减少，通信量会略微增加50%。作者通过用少量的计算的成本和通信成本换来了大幅的内存节省。
 
 `ZeRO-Infinity`是ZeRO的一个扩展版本，它允许将模型参数存储在CPU内存或NVMe存储上，而不是全部存储在GPU内存中，最终在有限资源下能够训练前所未有规模的模型（在单个NVIDIA DGX-2节点上微调具有1万亿参数的模型），而无需对模型代码进行重构。与此同时，它实现了出色的训练吞吐量和可扩展性，不受有限的CPU或NVMe带宽的限制。
