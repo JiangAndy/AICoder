@@ -70,8 +70,648 @@
 ## DeepSpeed横空出世
 基于上诉实际需求，DeepSpeed应运而生。DeepSpeed是由Microsoft提供的分布式训练工具，旨在支持更大规模的模型和提供更多的优化策略和工具。与其他框架相比，DeepSpeed支持更大规模的模型和提供更多的优化策略和工具。其中，主要优势在于支持更大规模的模型、提供了更多的优化策略和工具（例如 ZeRO 和 Offload 等）。
 
+### zero简介
+ZeRO论文:[《ZeRO：Memory Optimizations Toward Training Trillion Parameter Models》](https://arxiv.org/pdf/1910.02054)
+ZeRO-Offload论文：[《ZeRO-Offload：Democratizing Billion-Scale Model Training.》](https://arxiv.org/abs/2101.06840)
+NVMe技术论文：[《 ZeRO-Infinity: Breaking the GPU Memory Wall for Extreme Scale Deep Learning》](https://arxiv.org/abs/2104.07857)
 
+`ZeRO`（Zero Redundancy Optimizer）是一种用于优化大规模深度学习模型训练的技术。它的主要目标是降低训练期间的内存占用、通信开销和计算负载，从而使用户能够训练更大的模型并更高效地利用硬件资源。
+
+ZERO论文首先分析了模型训练中内存主要消耗在两个方面：
+
+- `model states`：模型状态，包括包括优化器参数（例如Adam的动量和方差）、梯度、模型参数
+- `residual states`：剩余状态，包括包括激活函数、临时缓冲区、内存碎片
+
+
+![1724491526919](https://github.com/user-attachments/assets/58977c50-f76e-4e90-8a8e-a3cbaeb57d72)
+
+`ZERO`分别使用`ZeRO-DP`和`ZeRO-R`来优化`model states`和`residual states`。如上图所示，`ZeRO-DP`包括三个阶段：
+
+**ZeRO 第 1 阶段**：优化器状态分割（$P_{os}$）：
+在每个gpu中保存全部的参数和梯度，但是只保存 $1/{N_d}$ 的优化器状态变量。通过将优化器状态进行分割，实现4倍的内存减少，同时保持与DP相同的通信量。
+
+**ZeRO 第 2 阶段**：梯度分割（$P_{os+g}$）：每个gpu中只保存 $1/{N_d}$ 的梯度，实现8倍的内存减少，并保持与DP相同的通信量。
+
+**ZeRO 第 3 阶段**：参数分割（$P_{os+g+p}$）：
+每个gpu中只保存 $1/{N_d}$ 的参数 ，实现64倍的内存减少，通信量会略微增加50%。作者通过用少量的计算的成本和通信成本换来了大幅的内存节省。
+
+`ZeRO-Infinity`是ZeRO的一个扩展版本，它允许将模型参数存储在CPU内存或NVMe存储上，而不是全部存储在GPU内存中，最终在有限资源下能够训练前所未有规模的模型（在单个NVIDIA DGX-2节点上微调具有1万亿参数的模型），而无需对模型代码进行重构。与此同时，它实现了出色的训练吞吐量和可扩展性，不受有限的CPU或NVMe带宽的限制。
+
+### deepspeed简介
+2020年3月`Microsoft Research`首次开源了`DeepSpeed` ，是一个用于训练大规模深度学习模型的优化工具，它实现了 `ZeRO` 论文中描述的所有内容，可以提高训练速度和内存效率，并降低资源需求。目前它提供以下支持：
+
+- Optimizer state partitioning (ZeRO stage 1)：优化器状态分区
+- Gradient partitioning (ZeRO stage 2)：梯度划分。DeepSpeed ZeRO-2 主要仅用于训练，因为其功能对推理没有用处。
+- Parameter partitioning (ZeRO stage 3)：参数划分。DeepSpeed ZeRO-3 也可用于推理，因为它允许在多个 GPU 上加载大型模型，而这在单个 GPU 上是不可能的。
+- Custom mixed precision training handling：混合精度训练。
+- A range of fast CUDA-extension-based optimizers：一系列基于 CUDA 扩展的快速优化器
+- ZeRO-Offload to CPU and NVMe：数据卸载到 CPU 和 NVMe。
+
+接下来我们学习如何使用这个强大的工具。
 
 # 如何使用deepspeed?
+
+## 安装
+通过pypi安装库：
+```shell
+pip install deepspeed
+```
+或通过`transformers`的`extras`安装：
+```shell
+pip install transformers[deepspeed]
+```
+
+本地构建：
+```shell
+git clone https://github.com/microsoft/DeepSpeed/
+cd DeepSpeed
+rm -rf build
+TORCH_CUDA_ARCH_LIST="8.6" DS_BUILD_CPU_ADAM=1 DS_BUILD_UTILS=1 pip install . \
+--global-option="build_ext" --global-option="-j8" --no-cache -v \
+--disable-pip-version-check 2>&1 | tee build.log
+```
+
+## 多GPU部署
+DeepSpeed有两种启动方式：
+
+- 使用PyTorch启动器：保持PyTorch的训练流程，只在其中使用DeepSpeed的一些配置文件和设置来改进训练速度和内存效率。好处是更容易集成到现有的PyTorch代码中，因为它不需要你改变整个训练流程。
+    ```shell
+    torch.distributed.run --nproc_per_node=2 your_program.py <normal cl args> --deepspeed ds_config.json
+    ```
+- 使用DeepSpeed提供的启动器：DeepSpeed提供了自己的启动器，它是一个独立的命令行工具，用于配置和启动DeepSpeed训练。这种方式适用于需要更高度自定义控制的情况，可以轻松在不同环境中部署。
+    ```shell
+    deepspeed --num_gpus=2 your_program.py <normal cl args> --deepspeed ds_config.json
+    ```
+上述命令中，各个字段的含义如下：
+- deepspeed: DeepSpeed启动器（launcher）
+- --num_gpus=2（可选）: 指定要使用的GPU数量，如果要启用所有的GPU，可以省略此参数。
+- your_program.py: 用户的训练脚本。在训练脚本中使用DeepSpeed提供的优化器、分布式训练支持和其他功能来优化您的训练任务。（DeepSpeed通常被集成到用户的自定义脚本中，以提供更高效的训练和更好的硬件资源利用率，所以DeepSpeed库本身没有训练代码。）
+- <normal cl args>: 一些普通的命令行参数，以指定训练任务的不同配置。
+- --deepspeed ds_config.json: 使用DeepSpeed的配置文件ds_config.json 来配置训练过程。
+
+下面是在DeepSpeed上使用所有可用GPU运行`run_translation.py`的示例：
+```shell
+deepspeed examples/pytorch/translation/run_translation.py \
+--deepspeed tests/deepspeed/ds_config_zero3.json \
+--model_name_or_path t5-small --per_device_train_batch_size 1 \
+--output_dir output_dir --overwrite_output_dir --fp16 \
+--do_train --max_train_samples 500 --num_train_epochs 1 \
+--dataset_name wmt16 --dataset_config "ro-en" \
+--source_lang en --target_lang ro
+```
+## 单GPU部署
+如果是使用一个 `GPU` 部署 `DeepSpeed`，只需要设置 `--num_gpus=1`，明确告诉 `DeepSpeed` 仅使用一个 `GPU`。
+
+```shell
+deepspeed --num_gpus=1 examples/pytorch/translation/run_translation.py \
+--deepspeed tests/deepspeed/ds_config_zero2.json \
+...
+```
+
+为什么要使用只有一个GPU的DeepSpeed？
+
+- 它具有ZeRO-offload功能，可以将一些计算和内存委派给主机的CPU和RAM，从而为模型的需求留下更多的GPU资源-例如更大的批次大小，或启用通常无法容纳的非常大的模型。
+- 它提供了智能的GPU内存管理系统，最小化内存碎片化，这样再次可以适应更大的模型和数据批次。
+
+要在具有一个GPU的DeepSpeed上获得巨大改进的关键是在配置文件中至少有以下配置：
+```json
+{
+  "zero_optimization": {
+     "stage": 2,
+     "offload_optimizer": {
+         "device": "cpu",
+         "pin_memory": true
+     },
+     "allgather_partitions": true,
+     "allgather_bucket_size": 2e8,
+     "reduce_scatter": true,
+     "reduce_bucket_size": 2e8,
+     "overlap_comm": true,
+     "contiguous_gradients": true
+  }
+}
+```
+## 多节点部署
+假设你有2个拥有8个GPU的节点。你可以通过`ssh hostname1`访问第一个节点，通过`ssh hostname2`访问第二个节点，并且两者必须能够通过本地ssh在没有密码的情况下相互访问。当然，你需要将这些主机（节点）名称重新命名为你使用的实际主机名称。
+### torch.distributed.run启动器
+例如，要使用`torch.distributed.run`，你可以执行以下操作：
+```shell
+python -m torch.distributed.run --nproc_per_node=8 --nnode=2 --node_rank=0 --master_addr=hostname1 \
+--master_port=9901 your_program.py <normal cl args> --deepspeed ds_config.json
+```
+你必须ssh到每个节点并在每个节点上运行相同的命令！不用着急，启动器会等待直到两个节点同步。
+
+### deepspeed启动器
+首先必须创建一个`hostfile`文件：
+```
+hostname1 slots=8
+hostname2 slots=8
+```
+
+然后你可以启动它：
+```shell
+deepspeed --num_gpus 8 --num_nodes 2 --hostfile hostfile --master_addr hostname1 --master_port=9901 \
+your_program.py <normal cl args> --deepspeed ds_config.json
+```
+
+与`torch.distributed.run`启动器不同，`deepspeed`将自动在两个节点上启动此命令！
+
+## ZeRO-0配置
+阶段0是禁用所有分片类型，仅使用DeepSpeed作为DDP。你可以使用以下方法启用它：
+```json
+{
+    "zero_optimization": {
+        "stage": 0
+    }
+}
+```
+这将完全禁用ZeRO，而你无需更改其他任何内容。
+
+## ZeRO-1配置
+第1阶段是第2阶段减去梯度分片。你可以尝试使用以下方法来稍微加快速度，只在优化器状态中进行分片：
+```json
+{
+    "zero_optimization": {
+        "stage": 1
+    }
+}
+```
+
+## ZeRO-2示例
+这是一个完整的ZeRO-2自动配置文件`ds_config_zero2.json`：
+```json
+{
+    "fp16": {
+        "enabled": "auto",
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    },
+
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": "auto",
+            "betas": "auto",
+            "eps": "auto",
+            "weight_decay": "auto"
+        }
+    },
+
+    "scheduler": {
+        "type": "WarmupLR",
+        "params": {
+            "warmup_min_lr": "auto",
+            "warmup_max_lr": "auto",
+            "warmup_num_steps": "auto"
+        }
+    },
+
+    "zero_optimization": {
+        "stage": 2,
+        "offload_optimizer": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "allgather_partitions": true,
+        "allgather_bucket_size": 2e8,
+        "overlap_comm": true,
+        "reduce_scatter": true,
+        "reduce_bucket_size": 2e8,
+        "contiguous_gradients": true
+    },
+
+    "gradient_accumulation_steps": "auto",
+    "gradient_clipping": "auto",
+    "steps_per_print": 2000,
+    "train_batch_size": "auto",
+    "train_micro_batch_size_per_gpu": "auto",
+    "wall_clock_breakdown": false
+}
+```
+这是一个完整的手动设置的ZeRO-2配置文件，主要是为了让你看到典型值的外观，但我们强烈建议使用其中具有多个`auto`设置的值。
+```json
+{
+    "fp16": {
+        "enabled": true,
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    },
+
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": 3e-5,
+            "betas": [0.8, 0.999],
+            "eps": 1e-8,
+            "weight_decay": 3e-7
+        }
+    },
+
+    "scheduler": {
+        "type": "WarmupLR",
+        "params": {
+            "warmup_min_lr": 0,
+            "warmup_max_lr": 3e-5,
+            "warmup_num_steps": 500
+        }
+    },
+
+    "zero_optimization": {
+        "stage": 2,
+        "offload_optimizer": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "allgather_partitions": true,
+        "allgather_bucket_size": 2e8,
+        "overlap_comm": true,
+        "reduce_scatter": true,
+        "reduce_bucket_size": 2e8,
+        "contiguous_gradients": true
+    },
+
+    "steps_per_print": 2000,
+    "wall_clock_breakdown": false
+}
+```
+
+## ZeRO-3示例
+这是一个完整的ZeRO-3自动配置文件`ds_config_zero3.json`：
+```json
+{
+    "fp16": {
+        "enabled": "auto",
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    },
+
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": "auto",
+            "betas": "auto",
+            "eps": "auto",
+            "weight_decay": "auto"
+        }
+    },
+
+    "scheduler": {
+        "type": "WarmupLR",
+        "params": {
+            "warmup_min_lr": "auto",
+            "warmup_max_lr": "auto",
+            "warmup_num_steps": "auto"
+        }
+    },
+
+    "zero_optimization": {
+        "stage": 3,
+        "offload_optimizer": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "offload_param": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "overlap_comm": true,
+        "contiguous_gradients": true,
+        "sub_group_size": 1e9,
+        "reduce_bucket_size": "auto",
+        "stage3_prefetch_bucket_size": "auto",
+        "stage3_param_persistence_threshold": "auto",
+        "stage3_max_live_parameters": 1e9,
+        "stage3_max_reuse_distance": 1e9,
+        "stage3_gather_16bit_weights_on_model_save": true
+    },
+
+    "gradient_accumulation_steps": "auto",
+    "gradient_clipping": "auto",
+    "steps_per_print": 2000,
+    "train_batch_size": "auto",
+    "train_micro_batch_size_per_gpu": "auto",
+    "wall_clock_breakdown": false
+}
+```
+这是一个完整的手动设置的ZeRO-3配置文件，主要是为了让你看到典型值的外观，但我们强烈建议使用其中具有多个`auto`设置的值。
+```json
+{
+    "fp16": {
+        "enabled": true,
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    },
+
+    "optimizer": {
+        "type": "AdamW",
+        "params": {
+            "lr": 3e-5,
+            "betas": [0.8, 0.999],
+            "eps": 1e-8,
+            "weight_decay": 3e-7
+        }
+    },
+
+    "scheduler": {
+        "type": "WarmupLR",
+        "params": {
+            "warmup_min_lr": 0,
+            "warmup_max_lr": 3e-5,
+            "warmup_num_steps": 500
+        }
+    },
+
+    "zero_optimization": {
+        "stage": 3,
+        "offload_optimizer": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "offload_param": {
+            "device": "cpu",
+            "pin_memory": true
+        },
+        "overlap_comm": true,
+        "contiguous_gradients": true,
+        "sub_group_size": 1e9,
+        "reduce_bucket_size": 1e6,
+        "stage3_prefetch_bucket_size": 0.94e6,
+        "stage3_param_persistence_threshold": 1e4,
+        "stage3_max_live_parameters": 1e9,
+        "stage3_max_reuse_distance": 1e9,
+        "stage3_gather_16bit_weights_on_model_save": true
+    },
+
+    "steps_per_print": 2000,
+    "wall_clock_breakdown": false
+}
+```
+## ZeRO-2与ZeRO-3性能进行比较
+如果在其他所有配置保持不变的情况下，ZeRO-3可能比ZeRO-2慢，因为前者需要收集模型权重，并且比ZeRO-2执行的操作更多。如果ZeRO-2满足你的需求，并且你不需要在几个GPU之间扩展，那么可以选择使用ZeRO-2。重要的是要了解，ZeRO-3可以以更高的可扩展性为代价提供更高的性能。
+
+可以调整ZeRO-3配置，使其性能更接近于ZeRO-2：
+
+- 将`stage3_param_persistence_threshold`设置为一个非常大的值-大于最大的参数值，例如`6 * hidden_size * hidden_size`。这将使参数保留在GPU上。
+- 关闭`offload_params`，因为ZeRO-2没有该选项。
+
+即使你不更改`stage3_param_persistence_threshold`，只要将`offload_params`关闭，性能可能会显着提高。当然，这些更改将影响你可以训练的模型的大小。因此，这些更改可让你在可扩展性和速度之间进行权衡，具体取决于你的需求。
+
+## NVMe支持
+通过使用NVMe内存可以扩展GPU和CPU内存，ZeRO-Infinity允许训练规模非常大的模型。由于智能划分和平铺算法，每个GPU在卸载过程中需要发送和接收非常少量的数据，因此现代NVMe被证明适合为训练过程提供总共更大的内存池。ZeRO-Infinity需要启用ZeRO-3。
+
+以下配置示例启用了将优化器状态和参数同时卸载到NVMe：
+```json
+{
+    "zero_optimization": {
+        "stage": 3,
+        "offload_optimizer": {
+            "device": "nvme",
+            "nvme_path": "/local_nvme",
+            "pin_memory": true,
+            "buffer_count": 4,
+            "fast_init": false
+        },
+        "offload_param": {
+            "device": "nvme",
+            "nvme_path": "/local_nvme",
+            "pin_memory": true,
+            "buffer_count": 5,
+            "buffer_size": 1e8,
+            "max_in_cpu": 1e9
+        },
+        "aio": {
+            "block_size": 262144,
+            "queue_depth": 32,
+            "thread_count": 1,
+            "single_submit": false,
+            "overlap_events": true
+        },
+        "overlap_comm": true,
+        "contiguous_gradients": true,
+        "sub_group_size": 1e9,
+        "reduce_bucket_size": "auto",
+        "stage3_prefetch_bucket_size": "auto",
+        "stage3_param_persistence_threshold": "auto",
+        "stage3_max_live_parameters": 1e9,
+        "stage3_max_reuse_distance": 1e9,
+        "stage3_gather_16bit_weights_on_model_save": true
+    },
+}
+```
+
+你可以选择同时卸载优化器状态和参数到NVMe，或者只卸载它们中的一个，或者都不卸载。例如，如果你有大量的CPU内存可用，可以只卸载到CPU内存，因为它的速度更快（提示："device": "cpu"）。
+
+这是卸载[优化器状态](https://www.deepspeed.ai/docs/config-json/#optimizer-offloading)和[参数](https://www.deepspeed.ai/docs/config-json/#parameter-offloading)的完整文档。
+
+确保`nvme_path`实际上是一个NVMe，因为它可以与常规硬盘或固态硬盘一起使用，但速度要慢得多。快速可扩展的训练是针对现代NVMe传输速度设计的（按照当前编写时，最大读取速度约为3.5GB / s，写入速度约为3GB / s）。
+
+## 如何选择最佳性能的ZeRO阶段和卸载方式
+通常，以下情况适用：
+
+- 从速度角度来看（左边比右边快）
+
+    阶段0（DDP）> 阶段1 > 阶段2 > 阶段2 + 卸载 > 阶段3 > 阶段3 + 卸载
+
+- 从GPU内存使用率来看（右边比左边更高效）
+
+    阶段0（DDP）< 阶段1 < 阶段2 < 阶段2 + 卸载 < 阶段3 < 阶段3 + 卸载
+
+因此，当你希望获得最快的执行速度，同时适应最小数量的GPU时，可以按照以下流程进行操作。我们从最快的方法开始，如果发生GPU OOM，然后转到更低速的方法，但使用更少的GPU内存。依此类推。
+
+首先将批次大小设置为1（你始终可以使用渐进累积进行任何所需的有效批次大小）。
+
+1. 启用`--gradient_checkpointing 1`（HF Trainer）或直接`model.gradient_checkpointing_enable()`- 如果发生OOM，则
+
+2. 尝试首先使用ZeRO阶段2。如果发生OOM，则
+
+3. 尝试使用ZeRO阶段2 + `offload_optimizer`。如果发生OOM，则
+
+4. 切换到ZeRO阶段3。如果发生OOM，则
+
+5. 将`offload_param`设置为`cpu`。如果发生OOM，则
+
+6. 将`offload_optimize`r设置为`cpu`。如果发生OOM，则
+
+7. 如果仍然无法适应批次大小为1，请检查各种默认值，并在可能的情况下将其降低。例如，如果使用`generate`并且不使用宽的搜索束，将其变为更窄，因为它会消耗大量内存。
+
+8. 使用半精度而不是fp32 - 在Ampere及更高的GPU上使用`bf16`，在较旧的GPU架构上使用`fp16`。
+
+9. 如果仍然发生OOM，可以添加更多硬件或启用ZeRO-Infinity-将`offload_param`和`offload_optimizer`切换到`nvme`。你需要确保它是一个非常快速的nvme。
+
+当你的批次大小为1时，没有发生OOM，请测量有效吞吐量。
+
+接下来，尝试增加批次大小，尽可能大，因为批次大小越大，GPU执行的效率越高，因为它们在乘以矩阵时表现最佳，而这些矩阵都非常大。
+
+你可以关闭一些卸载功能或者降低 ZeRO 阶段，并增加/减少批大小，然后再测量有效吞吐量。反复测试直到满意。
+
+
+这些注意事项主要是为训练模式编写的，但大部分适用于推理模式。例如，在推理期间，渐变检查点是无效操作，因为它只在训练期间有用。
+
+如果你从头开始训练某个东西，请尝试使张量的形状可被 16 整除（例如隐藏大小）。对于批大小，请至少尝试使其可被 2 整除。
+
+## 激活检查点或渐变检查点
+
+激活检查点和渐变检查点是两个相互独立的术语，指的是同一方法。这非常令人困惑，但情况就是这样。
+
+渐变检查点允许你在 GPU 内存和速度之间进行权衡，它可以克服 GPU OOM 或增加批大小，从而通常可以获得更好的性能。
+
+HF transformers模型不知道 DeepSpeed 的激活检查点，因此，如果你尝试在 DeepSpeed 配置文件中启用该功能，将不会发生任何事情。
+
+因此，你有两种方法可以利用此非常有益的功能：
+
+- 如果要使用 HF transformers模型，可以使用 `model.gradient_checkpointing_enable()` 或在 HF Trainer 中使用 `--gradient_checkpointing`，它将自动为你启用此功能。在那里使用了 `torch.utils.checkpoint`。
+- 如果你自己编写了模型，并且想使用 DeepSpeed 的激活检查点，则可以使用[此处](https://deepspeed.readthedocs.io/en/latest/activation-checkpointing.html)规定的 API。你还可以使用 HF transformers 建模代码并将`torch.utils.checkpoint` 替换为 DeepSpeed 的 API。后者更加灵活，因为它允许你将前向激活卸载到 CPU 内存，而不是重新计算它们。
+
+## 优化器和调度器
+只要不启用 `offload_optimizer`，就可以混合使用 DeepSpeed 和 HuggingFace 的调度器和优化器，除了使用 HuggingFace 调度器和 DeepSpeed 优化器的组合之外:
+
+| 组合 | HF 调度器 | DS 调度器 | 
+|---|---|---|
+| HF 优化器 | 是 | 是 | 
+| DS 优化器 | 否 | 是 |
+
+可以使用非 DeepSpeed 优化器，只要它具有 CPU 和 GPU 实现（不包括 LAMB）。
+
+### 优化器
+
+优化器必须通过[此处](https://www.deepspeed.ai/docs/config-json/#optimizer-parameters)进行配置。DeepSpeed 的主要优化器是 Adam、AdamW、OneBitAdam 和 Lamb。这些优化器已经经过全面测试，因此建议使用。它还可以从 `torch` 导入其他优化器。如果不在配置文件中配置 `optimizer` 条目，则 [`Trainer`] 将自动将其设置为 `AdamW`，并使用提供的值或默认值设置以下命令行参数: `--learning_rate`、`--adam_beta1`、`--adam_beta2`、`--adam_epsilon` 和 `--weight_decay`。
+
+以下是自动配置的 `AdamW` 的示例:
+```json
+{
+   "optimizer": {
+       "type": "AdamW",
+       "params": {
+         "lr": "auto",
+         "betas": "auto",
+         "eps": "auto",
+         "weight_decay": "auto"
+       }
+   }
+}
+```
+请注意，命令行参数将设置配置文件中的值。这样就有了一个定义值的唯一来源，并且避免了例如在不同位置设置学习率为不同值时难以找到的错误。命令行的规则优先。被覆盖的值有:
+
+- `lr` 使用 `--learning_rate` 的值
+- `betas` 使用 `--adam_beta1` 和 `--adam_beta2` 的值
+- `eps` 使用 `--adam_epsilon` 的值
+- `weight_decay` 使用 `--weight_decay` 的值
+
+因此，请记住在命令行上调整共享超参数。
+
+你还可以显式地设置值:
+```json
+{
+   "optimizer": {
+       "type": "AdamW",
+       "params": {
+         "lr": 0.001,
+         "betas": [0.8, 0.999],
+         "eps": 1e-8,
+         "weight_decay": 3e-7
+       }
+   }
+}
+```
+但是，你需要自己同步 [`Trainer`] 命令行参数和 DeepSpeed 配置文件。
+
+如果要使用其他未列出的优化器，必须将其添加到顶级配置中。
+```json
+{
+   "zero_allow_untested_optimizer": true
+}
+```
+与 `AdamW` 类似，你可以配置其他官方支持的优化器。只需记住这些优化器可能具有不同的配置值。例如，对于 Adam，你将希望 `weight_decay` 在`0.01` 左右。
+
+此外，当与卸载一起使用时，使用 Deepspeed 的 CPU Adam 优化器时效果最好。如果要在卸载时使用其他优化器，自 `deepspeed==0.8.3` 以来，你还需要添加:
+```json
+{
+   "zero_force_ds_cpu_optimizer": false
+}
+```
+到顶级配置。
+
+### 调度器
+DeepSpeed 支持 `LRRangeTest`、`OneCycle`、`WarmupLR` 和 `WarmupDecayLR` 学习率调度器。完整文档在[这里](https://www.deepspeed.ai/docs/config-json/#scheduler-parameters)。
+
+以下是 DeepSpeed 和 🤗Transformers 之间调度器的重叠部分：
+
+- `WarmupLR` 通过 `--lr_scheduler_type constant_with_warmup`。
+- `WarmupDecayLR` 通过 `--lr_scheduler_type linear`。这也是 `--lr_scheduler_type` 的默认值，因此，如果不配置调度器，这是默认的配置。
+
+如果不在配置文件中配置 scheduler 条目，则 [`Trainer`] 将使用 `--lr_scheduler_type`、`--learning_rate` 和 `--warmup_steps` 或 `--warmup_ratio` 的值配置 🤗Transformers 版本。
+
+以下是自动配置的 `WarmupLR` 的示例:
+```json
+{
+   "scheduler": {
+         "type": "WarmupLR",
+         "params": {
+             "warmup_min_lr": "auto",
+             "warmup_max_lr": "auto",
+             "warmup_num_steps": "auto"
+         }
+     }
+}
+```
+由于使用了 "auto"，[`Trainer`] 参数将在配置文件中设置正确的值。这样就有了一个定义值的唯一来源，并且避免了例如在不同位置设置学习率为不同值时难以找到的错误。命令行优先。设置的值为：
+
+- `warmup_min_lr` 的值为 `0`。
+- `warmup_max_lr` 的值为 `--learning_rate`。
+- `warmup_num_steps` 的值为如果提供了 `--warmup_steps`，则使用该值。否则，将使用 `--warmup_ratio` 乘以训练步骤的数量，并向上取整。
+- `total_num_steps` 的值为 `--max_steps` 的值，否则在运行时根据环境、数据集的大小和其他命令行参数自动推导出来（`WarmupDecayLR` 需要）。
+
+当然，你可以接管配置值中的任何一个或多个，并自行设置：
+```json
+{
+   "scheduler": {
+         "type": "WarmupLR",
+         "params": {
+             "warmup_min_lr": 0,
+             "warmup_max_lr": 0.001,
+             "warmup_num_steps": 1000
+         }
+     }
+}
+```
+但是，你需要自己同步 [`Trainer`] 命令行参数和 DeepSpeed 配置。
+
+例如，对于 `WarmupDecayLR`，可以使用以下条目:
+```json
+{
+   "scheduler": {
+         "type": "WarmupDecayLR",
+         "params": {
+             "last_batch_iteration": -1,
+             "total_num_steps": "auto",
+             "warmup_min_lr": "auto",
+             "warmup_max_lr": "auto",
+             "warmup_num_steps": "auto"
+         }
+     }
+}
+```
+它将在加载时设置 `total_num_steps`、`warmup_max_lr`、`warmup_num_steps` 和 `total_num_steps`。
+
+## fp32 精度
+
+## NCCL 集合
+
+
+## 自动混合精度
+
+## 故障排除
 
 
