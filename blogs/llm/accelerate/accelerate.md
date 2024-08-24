@@ -127,13 +127,13 @@ Accelerate 提供了额外的功能，例如梯度累积 (gradient accumulation)
 ### 梯度裁剪
 梯度裁剪是一种防止“梯度爆炸”的技术，Accelerate 提供以下两种方法：
 
-- clip_grad_value_：将可迭代参数的梯度裁剪为指定值。 梯度就地修改（in-place）。
-  - parametres：可迭代的张量或单个张量，其梯度将归一化
-  - clip_value：梯度的阈值。梯度被限制在范围内
-- clip_grad_norm_：范数是对所有梯度一起计算的。梯度就地修改。
-  - parameters：可迭代的张量或单个张量，其梯度将归一化
-  - max_norm：梯度的最大范数
-  - norm_type：float，默认为2.0，用的 p-范数的类型。inf表示无穷范数。
+- `clip_grad_value_`：将可迭代参数的梯度裁剪为指定值。 梯度就地修改（in-place）。
+  - `parametres`：可迭代的张量或单个张量，其梯度将归一化
+  - `clip_value`：梯度的阈值。梯度被限制在范围内
+- `clip_grad_norm_`：范数是对所有梯度一起计算的。梯度就地修改。
+  - `parameters`：可迭代的张量或单个张量，其梯度将归一化
+  - `max_norm`：梯度的最大范数
+  - `norm_type`：float，默认为2.0，用的 p-范数的类型。inf表示无穷范数。
 
 ```python
 from accelerate import Accelerator
