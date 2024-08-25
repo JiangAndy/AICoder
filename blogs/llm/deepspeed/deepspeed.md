@@ -146,11 +146,11 @@ DeepSpeed有两种启动方式：
     deepspeed --num_gpus=2 your_program.py <normal cl args> --deepspeed ds_config.json
     ```
 上述命令中，各个字段的含义如下：
-- deepspeed: DeepSpeed启动器（launcher）
-- --num_gpus=2（可选）: 指定要使用的GPU数量，如果要启用所有的GPU，可以省略此参数。
-- your_program.py: 用户的训练脚本。在训练脚本中使用DeepSpeed提供的优化器、分布式训练支持和其他功能来优化您的训练任务。（DeepSpeed通常被集成到用户的自定义脚本中，以提供更高效的训练和更好的硬件资源利用率，所以DeepSpeed库本身没有训练代码。）
-- <normal cl args>: 一些普通的命令行参数，以指定训练任务的不同配置。
-- --deepspeed ds_config.json: 使用DeepSpeed的配置文件ds_config.json 来配置训练过程。
+- `deepspeed`: DeepSpeed启动器（launcher）
+- `--num_gpus=2`（可选）: 指定要使用的GPU数量，如果要启用所有的GPU，可以省略此参数。
+- `your_program.py`: 用户的训练脚本。在训练脚本中使用DeepSpeed提供的优化器、分布式训练支持和其他功能来优化您的训练任务。（DeepSpeed通常被集成到用户的自定义脚本中，以提供更高效的训练和更好的硬件资源利用率，所以DeepSpeed库本身没有训练代码。）
+- `<normal cl args>`: 一些普通的命令行参数，以指定训练任务的不同配置。
+- `--deepspeed ds_config.json`: 使用DeepSpeed的配置文件`ds_config.json` 来配置训练过程。
 
 下面是在DeepSpeed上使用所有可用GPU运行`run_translation.py`的示例：
 ```shell
@@ -551,7 +551,7 @@ your_program.py <normal cl args> --deepspeed ds_config.json
 
 8. 使用半精度而不是fp32 - 在Ampere及更高的GPU上使用`bf16`，在较旧的GPU架构上使用`fp16`。
 
-9. 如果仍然发生OOM，可以添加更多硬件或启用ZeRO-Infinity-将`offload_param`和`offload_optimizer`切换到`nvme`。你需要确保它是一个非常快速的nvme。
+9. 如果仍然发生OOM，可以添加更多硬件或启用ZeRO-Infinity-将`offload_param`和`offload_optimizer`切换到`nvme`。你需要确保它是一个非常快速的`nvme`。
 
 当你的批次大小为1时，没有发生OOM，请测量有效吞吐量。
 
