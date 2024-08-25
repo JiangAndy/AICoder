@@ -564,18 +564,16 @@ your_program.py <normal cl args> --deepspeed ds_config.json
 
 如果你从头开始训练某个东西，请尝试使张量的形状可被 16 整除（例如隐藏大小）。对于批大小，请至少尝试使其可被 2 整除。
 
-## 激活检查点或渐变检查点
+## activation checkpointing或gradient checkpointing
 
-激活检查点和渐变检查点是两个相互独立的术语，指的是同一方法。这非常令人困惑，但情况就是这样。
+activation checkpointing和gradient checkpointing是两个相互独立的术语，指的是同一方法。这非常令人困惑，但情况就是这样。
 
-渐变检查点允许你在 GPU 内存和速度之间进行权衡，它可以克服 GPU OOM 或增加批大小，从而通常可以获得更好的性能。
-
-HF transformers模型不知道 DeepSpeed 的激活检查点，因此，如果你尝试在 DeepSpeed 配置文件中启用该功能，将不会发生任何事情。
+gradient checkpointing允许你在 GPU 内存和速度之间进行权衡，它可以克服 GPU OOM 或增加批大小，从而通常可以获得更好的性能。
 
 因此，你有两种方法可以利用此非常有益的功能：
 
 - 如果要使用 HF transformers模型，可以使用 `model.gradient_checkpointing_enable()` 或在 HF Trainer 中使用 `--gradient_checkpointing`，它将自动为你启用此功能。在那里使用了 `torch.utils.checkpoint`。
-- 如果你自己编写了模型，并且想使用 DeepSpeed 的激活检查点，则可以使用[此处](https://deepspeed.readthedocs.io/en/latest/activation-checkpointing.html)规定的 API。你还可以使用 HF transformers 建模代码并将`torch.utils.checkpoint` 替换为 DeepSpeed 的 API。后者更加灵活，因为它允许你将前向激活卸载到 CPU 内存，而不是重新计算它们。
+- 如果你自己编写了模型，并且想使用 DeepSpeed 的activation checkpointng，则可以使用[此处](https://deepspeed.readthedocs.io/en/latest/activation-checkpointing.html)规定的 API。你还可以使用 HF transformers 建模代码并将`torch.utils.checkpoint` 替换为 DeepSpeed 的 API。后者更加灵活，因为它允许你将前向激活卸载到 CPU 内存，而不是重新计算它们。
 
 ## 优化器和调度器
 只要不启用 `offload_optimizer`，就可以混合使用 DeepSpeed 和 HuggingFace 的调度器和优化器，除了使用 HuggingFace 调度器和 DeepSpeed 优化器的组合之外:
@@ -709,12 +707,348 @@ DeepSpeed 支持 `LRRangeTest`、`OneCycle`、`WarmupLR` 和 `WarmupDecayLR` 学
 它将在加载时设置 `total_num_steps`、`warmup_max_lr`、`warmup_num_steps` 和 `total_num_steps`。
 
 ## fp32 精度
+Deepspeed 支持完全的 fp32 和 fp16 混合精度。
+
+由于 `fp16` 混合精度需要的内存更少，速度更快，所以你唯一不希望使用的情况是当你使用的模型在此训练模式下表现不佳时。这样的模型可能会溢出或下溢，导致损失为 `NaN`。如果是这种情况，你将希望使用完全的 fp32 模式，并通过显式禁用默认的 fp16 混合精度模式来禁用它:
+
+```json
+{
+    "fp16": {
+        "enabled": false,
+    }
+}
+```
+
+如果使用 Ampere 架构的 GPU，从 pytorch 1.7 版本开始，默认情况下会自动切换为使用更高效的 `tf32` 格式进行某些操作，但结果仍然是 `fp32`。
+
+使用 🤗Trainer，你可以使用 `--tf32` 启用它，或使用 `--tf32 0` 或 `--no_tf32` 禁用它。默认情况下，PyTorch 使用默认值。
+
+```json
+{
+    "bf16": {
+        "enabled": "auto"
+    }
+}
+```
+bf16 的动态范围与 fp32 相同，因此不需要有损失区。
+
+当使用 `--bf16` 或 `--bf16_full_eval` 命令行参数时，启用此模式。
+
+你还可以显式启用/禁用此模式：
+
+```json
+{
+    "bf16": {
+        "enabled": true
+    }
+}
+```
+提示:
+
+如果你在训练时使用 `梯度累积`，并启用了 `bf16`，你需要注意，它将以 `bf16` 累积梯度，这可能不是你想要的，因为此格式的精度较低，可能会导致有损累积。
 
 ## NCCL 集合
+有一个 `dtype` 是训练制度，还有一个单独的 `dtype` 用于通信集合，如各种reduce和gathering/scattering操作。
 
+所有gather/scatter操作都使用与数据相同的 `dtype`，因此，如果你正在使用 `bf16` 训练制度，则以 `bf16` 进行gather。gather是一个非损失操作。
+
+各种reduce操作可能会非常有损，例如当梯度在多个 `GPU` 上进行平均时，如果通信是在 `fp16` 或 `bf16` 上执行的，则结果很可能会有损-因为在低精度下添加多个数字时，结果不是精确的。特别是在使用 `bf16` 时更加如此，因为它的精度低于 `fp16`。通常情况下，`fp16` 已经足够好，因为平均梯度通常非常小。因此，默认情况下，在半精度训练中使用 `fp16` 作为reduce操作的默认值。但是，你对此功能有完全的控制，并且如果选择，可以添加一些额外的开销，并确保在累计完成后将其累积到半精度 `dtype` 中，直到结果准备好后才降级到你正在训练的半精度“dtype”。
+
+为了覆盖默认值，你只需添加一个新的配置条目：
+```json
+{
+    "communication_data_type": "fp32"
+}
+```
 
 ## 自动混合精度
+你可以使用 pytorch-like AMP 方法或 apex-like 方法来使用自动混合精度：
+
+### fp16
+要配置带有 `fp16（float16）`的 pytorch-like AMP 模式，请设置：
+```json
+{
+    "fp16": {
+        "enabled": "auto",
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    }
+}
+```
+[`Trainer`] 将根据 args.fp16_backend 的值和 args.fp16_opt_level 的值自动启用或禁用此模式。
+
+当传递 `--fp16` `--fp16_backend amp` `--fp16_opt_level 01` 命令行参数时，将启用此模式。
+
+你还可以显式配置此模式：
+```json
+{
+    "fp16": {
+        "enabled": true,
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    }
+}
+```
+但是，你需要自己同步 [`Trainer`] 的命令行参数和 `DeepSpeed` 的配置文件。
+
+### bf16
+如果希望使用 `bf16（bfloat16）`而不是 fp16，则可以使用以下配置部分：
+```json
+{
+    "bf16": {
+        "enabled": "auto"
+    }
+}
+```
+`bf16` 与 `fp32` 具有相同的动态范围，因此不需要有损补。
+
+当传递 `--bf16` 或 `--bf16_full_eval` 命令行参数时，启用此模式。
+
+你还可以显式启用/禁用此模式：
+```json
+{
+    "bf16": {
+        "enabled": true
+    }
+}
+```
 
 ## 故障排除
+
+### 在启动时，deepspeed进程无回溯地被杀死
+如果`deepspeed`进程在启动时被无回溯地杀死，这通常意味着程序尝试分配的CPU内存超过了系统或进程允许分配的CPU内存，因此操作系统内核杀死了该进程。这是因为你的配置文件很可能同时配置了`offload_optimizer`和`offload_param`将其转移到了`cpu`。如果你有`NVMe`，如果在ZeRO-3下运行，可以尝试将其分流到`NVMe`。可以使用以下方法来[估计为特定模型需要多少内存](https://deepspeed.readthedocs.io/en/latest/memory.html)。
+
+### 训练和/或评估/预测损失为NaN
+
+在将以`bf16`混合精度模式预训练的模型用于不带混合精度的`fp16`下时，经常会发生损失为`NaN`的情况。大多数基于TPU并且通常是谷歌发布的模型都属于此类别（例如，几乎所有基于t5的模型）。在这种情况下，解决方案是要么使用`fp32`，要么使用如果你的硬件支持（TPU、Ampere GPU或更新版本）时使用`bf16`。
+
+另一个问题可能与使用fp16有关。当配置以下部分时：
+```json
+{
+    "fp16": {
+        "enabled": "auto",
+        "loss_scale": 0,
+        "loss_scale_window": 1000,
+        "initial_scale_power": 16,
+        "hysteresis": 2,
+        "min_loss_scale": 1
+    }
+}
+```
+并且你在日志中看到Deepspeed报告如下`OVERFLOW!`的情况：
+```shell
+0%|                                                                                                                             | 0/189 [00:00<?, ?it/s]
+ [deepscale] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 262144, reducing to 262144
+  1%|▌                                                                                                                    | 1/189 [00:00<01:26,  2.17it/s]
+ [deepscale] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 262144, reducing to 131072.0
+  1%|█▏
+ [...]
+ [deepscale] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 1, reducing to 1
+ 14%|████████████████▌                                                                                                   | 27/189 [00:14<01:13,  2.21it/s]
+ [deepscale] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 1, reducing to 1
+ 15%|█████████████████▏                                                                                                  | 28/189 [00:14<01:13,  2.18it/s]
+ [deepscale] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 1, reducing to 1
+ 15%|█████████████████▊                                                                                                  | 29/189 [00:15<01:13,  2.18it/s]
+ [deepscale] OVERFLOW! Rank 0 Skipping step. Attempted loss scale: 1, reducing to 1
+[...]
+```
+这意味着Deepspeed损失缩放器无法找到一个可以克服损失溢出的缩放系数。
+
+
+在这种情况下，你通常需要提高`initial_scale_power`的值。将其设置为`"initial_scale_power": 32`通常可以解决该问题。
+
+**注意事项**
+虽然DeepSpeed有一个可pip安装的PyPI软件包，但强烈建议从[源代码](https://github.com/microsoft/deepspeed#installation)进行安装，以便最好地匹配你的硬件，并且如果你需要启用某些功能（如1-bit Adam），在pypi分发中无法使用。
+
+## 使用非Trainer的Deepspeed集成
+当不使用[`Trainer`]时，[`~integrations.HfDeepSpeedConfig`]用于将Deepspeed集成到🤗Transformers核心功能中。唯一的需要是处理Deepspeed ZeRO-3参数聚合并在`from_pretrained`调用期间自动将模型分割到多个GPU上。其他所有操作都需要你自己完成。
+
+当使用[`Trainer`]时，所有操作都会自动处理。
+
+当不使用[`Trainer`]时，为了有效地部署DeepSpeed ZeRO-3，你必须在实例化模型之前实例化[`~integrations.HfDeepSpeedConfig`]对象，并将该对象保持活动状态。
+
+如果你使用Deepspeed ZeRO-1或ZeRO-2，则根本不需要使用`HfDeepSpeedConfig`。
+
+例如，对于预训练模型：
+```python
+from transformers.integrations import HfDeepSpeedConfig
+from transformers import AutoModel
+import deepspeed
+
+ds_config = {...}  # deepspeed配置对象或文件的路径
+# 必须在实例化模型之前运行以检测zero 3
+dschf = HfDeepSpeedConfig(ds_config)  # 保持此对象的活动状态
+model = AutoModel.from_pretrained("gpt2")
+engine = deepspeed.initialize(model=model, config_params=ds_config, ...)
+```
+或者对于非预训练模型：
+```python
+from transformers.integrations import HfDeepSpeedConfig
+from transformers import AutoModel, AutoConfig
+import deepspeed
+
+ds_config = {...}  # deepspeed配置对象或文件的路径
+# 必须在实例化模型之前运行以检测zero 3
+dschf = HfDeepSpeedConfig(ds_config)  # 保持此对象的活动状态
+config = AutoConfig.from_pretrained("gpt2")
+model = AutoModel.from_config(config)
+engine = deepspeed.initialize(model=model, config_params=ds_config, ...)
+```
+请注意，如果你不使用[`Trainer`]集成，则完全由你自己负责。基本上按照[Deepspeed](https://www.deepspeed.ai/)网站上的文档操作。此外，必须显式配置配置文件-无法使用"auto"值，必须使用实际值。
+
+## 自定义Deepspeed ZeRO推理
+以下示例演示了如何在不使用[`Trainer`]时进行Deepspeed ZeRO推理，当无法将模型装入单个GPU中时。该解决方案包括使用额外的GPU和/或将GPU内存卸载到CPU内存中。
+
+需要了解的重要细微之处是，ZeRO的设计方式允许在每个GPU上并行处理不同的输入。
+
+示例具有大量注释，并以自我记录方式进行了说明。
+
+确保：
+
+- 如果你有足够的GPU内存，请禁用CPU offload（因为会减慢处理速度）
+- 如果你拥有Ampere或更高版本的GPU，请启用 `bf16`以加快速度。如果你没有这样的硬件，只要不使用以`bf16`混合精度预训练的任何模型（例如大多数t5模型），你可以启用`fp16`。这些模型通常在`fp16`中溢出，并显示垃圾输出。
+```python
+#!/usr/bin/env python
+
+# 此脚本演示了在无法将模型装入单个GPU中时如何在推理模式下使用Deepspeed ZeRO。
+#
+# 1. 使用1个带CPU卸载的GPU
+# 2. 或者使用多个GPU
+#
+# 首先你需要安装deepspeed：pip install deepspeed
+#
+# 这里我们使用3B "bigscience/T0_3B"模型，它需要大约15GB的GPU RAM-因此可以使用1个较大的或2个较小的GPU来处理它。或者，一个小型的GPU和大量的CPU内存。
+#
+# 要使用更大的模型，比如需要大约50GB的"bigscience/T0"，除非你拥有一个80GB的GPU，否则需要使用2-4个GPU。然后你可以根据需要调整该脚本以处理更多的GPU。
+#
+# 提供的deepspeed配置还激活了CPU内存卸载，因此，如果你有大量可用的CPU内存，并且不介意减慢速度，应该可以加载通常不适应单个GPU的模型。如果你有足够的GPU内存，如果你不想进行CPU卸载，那么程序将运行得更快-因此禁用该部分。
+#
+# 要在1个gpu上部署：
+#
+# deepspeed --num_gpus 1 t0.py
+# or:
+# python -m torch.distributed.run --nproc_per_node=1 t0.py
+#
+# 要在2个gpu上部署：
+#
+# deepspeed --num_gpus 2 t0.py
+# or:
+# python -m torch.distributed.run --nproc_per_node=2 t0.py
+
+
+from transformers import AutoTokenizer, AutoConfig, AutoModelForSeq2SeqLM
+from transformers.integrations import HfDeepSpeedConfig
+import deepspeed
+import os
+import torch
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # 避免关于tokenizers并行性的警告
+
+# 分布式设置
+local_rank = int(os.getenv("LOCAL_RANK", "0"))
+world_size = int(os.getenv("WORLD_SIZE", "1"))
+torch.cuda.set_device(local_rank)
+deepspeed.init_distributed()
+
+model_name = "bigscience/T0_3B"
+
+config = AutoConfig.from_pretrained(model_name)
+model_hidden_size = config.d_model
+
+# 批处理大小必须可被world_size整除，但可以大于world_size
+train_batch_size = 1 * world_size
+
+# ds_config 注释：
+#
+# - 如果你使用的是Ampere或更高版本的GPU，请启用bf16-这将以混合精度运行并且速度更快。
+#
+# - 对于旧一些的GPU，你可以启用fp16，但仅使用未经bf16预训练的模型-例如，所有官方的t5模型都是经过bf16预训练的。
+#
+# - 将offload_param.device设置为"none"或完全删除`offload_param`部分，如果你不- 想进行CPU卸载
+#
+# - 如果使用`offload_param`，你可以手动微调stage3_param_persistence_threshold以控制应保留在GPU上的参数数量- 值越大，卸载的尺寸越小
+#
+# 有关Deepspeed配置的详细信息，请参见
+# https://huggingface.co/docs/transformers/main/main_classes/deepspeed
+
+# 为了保持与.json的一致性使用相同的格式，只是它在true/false上使用小写
+# fmt: off
+ds_config = {
+    "fp16": {
+        "enabled": False
+    },
+    "bf16": {
+        "enabled": False
+    },
+    "zero_optimization": {
+        "stage": 3,
+        "offload_param": {
+            "device": "cpu",
+            "pin_memory": True
+        },
+        "overlap_comm": True,
+        "contiguous_gradients": True,
+        "reduce_bucket_size": model_hidden_size * model_hidden_size,
+        "stage3_prefetch_bucket_size": 0.9 * model_hidden_size * model_hidden_size,
+        "stage3_param_persistence_threshold": 10 * model_hidden_size
+    },
+    "steps_per_print": 2000,
+    "train_batch_size": train_batch_size,
+    "train_micro_batch_size_per_gpu": 1,
+    "wall_clock_breakdown": False
+}
+# fmt: on
+
+# 下一行指示transformers在调用模型的`from_pretrained`方法时，使用deepspeed.zero.Init直接在多个gpu上对模型进行分区。
+#
+# **必须在加载模型AutoModelForSeq2SeqLM.from_pretrained(model_name)之前运行此行**
+#
+# 否则，模型将首先以常规方式加载，仅在前向时分区，这样会更低效，并且在CPU内存很少的情况下可能会失败
+dschf = HfDeepSpeedConfig(ds_config)  # 保持此对象的活动状态
+
+# 现在可以加载模型。
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+# 初始化Deepspeed ZeRO并仅存储引擎对象
+ds_engine = deepspeed.initialize(model=model, config_params=ds_config)[0]
+ds_engine.module.eval()  # 推理模式
+
+# Deepspeed ZeRO可以在每个GPU上处理不相关的输入。因此，对于2个gpu，你可以同时处理2个输入。
+# 如果只有一个要处理的输入，则需要同时将相同的字符串传递给两个gpu
+# 如果只有一个GPU，那么你只有rank 0。
+rank = torch.distributed.get_rank()
+if rank == 0:
+    text_in = "Is this review positive or negative? Review: this is the best cast iron skillet you will ever buy"
+elif rank == 1:
+    text_in = "Is this review positive or negative? Review: this is the worst restaurant ever"
+
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+inputs = tokenizer.encode(text_in, return_tensors="pt").to(device=local_rank)
+with torch.no_grad():
+    outputs = ds_engine.module.generate(inputs, synced_gpus=True)
+text_out = tokenizer.decode(outputs[0], skip_special_tokens=True)
+print(f"rank{rank}:\n   in={text_in}\n  out={text_out}")
+```
+将其保存为`t0.py`并运行：
+```shell
+$ deepspeed --num_gpus 2 t0.py
+rank0:
+   in=Is this review positive or negative? Review: this is the best cast iron skillet you will ever buy
+  out=Positive
+rank1:
+   in=Is this review positive or negative? Review: this is the worst restaurant ever
+  out=negative
+```
+这是一个非常基本的示例，你需要根据自己的需求进行调整。
+
+### generate细微差别
+使用ZeRO Stage-3和多个GPU时，必须通过调用`generate(..., synced_gpus=True)`来同步GPU。如果不这样做，如果某个GPU在其他GPU之前完成生成，则整个系统将发生挂起，因为其他GPU将无法从停止生成的GPU接收权重分片。
+
 
 
