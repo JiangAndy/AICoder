@@ -913,6 +913,7 @@ engine = deepspeed.initialize(model=model, config_params=ds_config, ...)
 
 - 如果你有足够的GPU内存，请禁用CPU offload（因为会减慢处理速度）
 - 如果你拥有Ampere或更高版本的GPU，请启用 `bf16`以加快速度。如果你没有这样的硬件，只要不使用以`bf16`混合精度预训练的任何模型（例如大多数t5模型），你可以启用`fp16`。这些模型通常在`fp16`中溢出，并显示垃圾输出。
+
 ```python
 #!/usr/bin/env python
 
