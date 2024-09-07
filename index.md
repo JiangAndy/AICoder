@@ -31,6 +31,8 @@
 
 [大模型训练工具之Deepspeed](blogs/llm/deepspeed/deepspeed.md)
 
+[大模型训练工具之Megatron](blogs/llm/megatron/megatron.md)
+
 [CSDN](https://mp.csdn.net/console/column/allColumnList)
 
 :rabbit2:  点击不同文章，发现更多可爱的小兔！:rabbit2:
