@@ -33,6 +33,6 @@
 
 [大模型训练工具之Megatron](blogs/llm/megatron/megatron.md)
 
-[CSDN](https://blog.csdn.net/andyjkt?spm=1010.2135.3001.5421)
+[CSDN](https://blog.csdn.net/andyjkt?type=blog)
 
 :rabbit2:  点击不同文章，发现更多可爱的小兔！:rabbit2:
