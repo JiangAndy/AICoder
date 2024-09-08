@@ -9,7 +9,7 @@
       <p><b>研究方向：计算机视觉、深度学习、OCR、多模态</b></p>
     </td>
     <td width="25%">
-      <img src="imgs/微信图片_20240817204501.jpg" width="100%">
+      <img src="imgs/微信图片_20240908163529.jpg" width="100%">
     </td>
   </tr>
 </table>
